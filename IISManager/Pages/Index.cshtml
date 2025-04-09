@@ -1,0 +1,612 @@
+﻿@page
+@using Techie.IISManager.Structures
+@using Techie.IISManager.TypeCodes
+@model IndexModel
+@{
+  ViewData["Title"] = "Home page";
+}
+
+@section Scripts
+{
+  <script type="text/javascript">
+    function pageLoad()
+    {
+      $("#btnCreate").click(btnCreate_onclick);
+      $("#btnCreateCreate").click(btnCreateCreate_onclick);
+      $("#divCreate-Site").change(divNewSite_onchange);
+      $("#btnServices").button("disabled");
+
+      loadCookies();
+
+      loadSiteList();
+
+      $("#tblList").on("click-row.bs.table", tblList_onclick);
+      $("#btnCertificateRequestDelete").click(btnCertificateRequestDelete_onclick);
+      $("#btnCertificateRequestSave").click(btnCertificateRequestSave_onclick);
+      $("#btnCertificateRequestRenew").click(btnCertificateRequestRenew_onclick);
+    }
+
+    function btnCertificateRequestDelete_onclick()
+    {
+      if (!window.confirm("Are you sure you want to delete this certificate request? This cannot be undone"))
+      {
+        return false;
+      }
+
+      $("#divCertificateRequest .modal-footer button").prop("disabled", true);
+
+      $.ajax(
+        {
+          url: "/api/certificate/" + $("#divCertificateRequest").data("data").certificateRequestId,
+          type: "DELETE",
+          success: function (data)
+          {
+            $("#divCertificateRequest .modal-footer button").prop("disabled", false);
+            if (data.errors != undefined)
+            {
+              alert(data.errorMessage);
+            }
+            else
+            {
+              $("#divCertificateRequest").modal("hide");
+              $("#tblList").bootstrapTable("refresh");
+            }
+          }
+      });
+    }
+
+    function btnCertificateRequestRenew_onclick()
+    {
+      Swal.fire({
+        title: 'Requesting Certificate Renew',
+        html: 'Please wait...',
+        showConfirmButton: false,
+        showCloseButton: false,
+        showCancelButton: false,
+        closeModal: false,
+      });
+
+      $.post(`/api/certificate/${$("#divCertificateRequest").data("data").certificateRequestId}/Renew`, {}, function (data)
+      {
+        $("#divCertificateRequest").modal("hide");
+        $("#tblList").bootstrapTable("refresh");
+        Swal.fire("Certificate Renewed", data.message, "success");
+      }).fail(function (data)
+      {
+        Swal.fire("Error", "Check logs...", "error");
+        console.log(data);
+      });
+    }
+
+    function btnCertificateRequestSave_onclick()
+    {
+      $.ajax(
+        {
+          url: "/api/certificate/" + $("#divCertificateRequest").data("data").certificateRequestId,
+          data: JSON.stringify(
+            {
+              commonName: $("#divCertificateRequest-CommonName").val(),
+              subjectAlternativeNames: $("#divCertificateRequest-SAN").val()
+            }),
+          type: "POST",
+          contentType: "application/json",
+          success: function (data)
+          {
+            $("#divCertificateRequest").modal("hide");
+            $("#tblList").bootstrapTable("refresh");
+          },
+          error: function (data)
+          {
+            Swal.fire("Failed", "Failed to create certificate", "error");
+            console.log(data);
+          }
+        });
+    }
+
+    function loadCookies()
+    {
+      if (Cookies.get('OrganizationName') != undefined)
+      {
+        $("#divCreate-OrganizationName").val(Cookies.get('OrganizationName'));
+      }
+
+      if (Cookies.get('AdminFirstName') != undefined)
+      {
+        $("#divCreate-AdminFirstName").val(Cookies.get('AdminFirstName'));
+      }
+
+      if (Cookies.get('AdminLastName') != undefined)
+      {
+        $("#divCreate-AdminLastName").val(Cookies.get('AdminLastName'));
+      }
+
+      if (Cookies.get('AddressLine1') != undefined)
+      {
+        $("#divCreate-AddressLine1").val(Cookies.get('AddressLine1'));
+      }
+
+      if (Cookies.get('AddressLine2') != undefined)
+      {
+        $("#divCreate-AddressLine2").val(Cookies.get('AddressLine2'));
+      }
+
+      if (Cookies.get('City') != undefined)
+      {
+        $("#divCreate-City").val(Cookies.get('City'));
+      }
+
+      if (Cookies.get('State') != undefined)
+      {
+        $("#divCreate-State").val(Cookies.get('State'));
+      }
+
+      if (Cookies.get('PostalCode') != undefined)
+      {
+        $("#divCreate-PostalCode").val(Cookies.get('PostalCode'));
+      }
+
+      if (Cookies.get('Country') != undefined)
+      {
+        $("#divCreate-Country").val(Cookies.get('Country'));
+      }
+
+      if (Cookies.get('PhoneNumber') != undefined)
+      {
+        $("#divCreate-PhoneNumber").val(Cookies.get('PhoneNumber'));
+      }
+
+      if (Cookies.get('EmailAddressForCert') != undefined)
+      {
+        $("#divCreate-EmailAddressForCert").val(Cookies.get('EmailAddressForCert'));
+      }
+
+      if (Cookies.get('OrganizationalUnit') != undefined)
+      {
+        $("#divCreate-Unit").val(Cookies.get('OrganizationalUnit'));
+      }
+
+      if (Cookies.get('Years') != undefined)
+      {
+        $("#divCreate-Years").val(Cookies.get('Years'));
+      }
+
+      if (Cookies.get('AddWWWSSLBinding') != undefined)
+      {
+        $("#divCreate-AddWWWSSLBinding").prop("checked", Cookies.get('AddWWWSSLBinding') == "true");
+      }
+
+      if (Cookies.get('RemoveNonSSLBinding') != undefined)
+      {
+        $("#divCreate-RemoveNonSSLBinding").prop("checked", Cookies.get('RemoveNonSSLBinding') == "true");
+      }
+
+      if (Cookies.get('CertificateAuthority') != undefined)
+      {
+        $("#selCertAuthority").val(Cookies.get('CertificateAuthority'));
+      }
+    }
+
+    function loadSiteList(canClearCache)
+    {
+      var url = "/api/website";
+
+      if (canClearCache)
+      {
+        url += "?clearcache=" + canClearCache;
+      }
+
+      $.get(url, function (data)
+      {
+        var temp = "<option value='0'>Select...</option><option value='refresh'>Refresh Site List</option>";
+        var optionClass = "";
+
+        data.forEach(function (item)
+        {
+          temp += "<optgroup label='" + item.name + "'>";
+
+          item.bindings.forEach(function (binding)
+          {
+            optionClass = "";
+            if (binding.isSecured)
+            {
+              optionClass = "alert-success";
+            }
+
+            temp += `<option class='${optionClass}' value='${binding.webSiteBindingId}' data-hostname='${binding.hostName}' data-websiteid='${item.webSiteId}'>`;
+            temp += binding.protocol + "://" + binding.hostName + ":" + binding.port
+            temp += "</option>";
+          });
+
+          temp += "</optgroup>";
+        });
+
+        $("#divCreate-Site").html(temp);
+      });
+    }
+
+    function btnCreate_onclick()
+    {
+      $("#divCreate").modal("show");
+    }
+
+    function btnCreateCreate_onclick()
+    {
+      var request = {};
+
+      request.webSiteId = $("#divCreate-Site option:selected").data("websiteid");
+      request.webSiteBindingId = $("#divCreate-Site").val();
+      request.organizationName = $("#divCreate-OrganizationName").val();
+      request.adminFirstName = $("#divCreate-AdminFirstName").val();
+      request.adminLastName = $("#divCreate-AdminLastName").val();
+      request.addressLine1 = $("#divCreate-AddressLine1").val();
+      request.addressLine2 = $("#divCreate-AddressLine2").val();
+      request.city = $("#divCreate-City").val();
+      request.state = $("#divCreate-State").val();
+      request.postalCode = $("#divCreate-PostalCode").val();
+      request.country = $("#divCreate-Country").val();
+      request.phoneNumber = $("#divCreate-PhoneNumber").val();
+      request.emailAddressForCert = $("#divCreate-EmailAddressForCert").val();
+      request.commonName = $("#divCreate-CommonName").val();
+      request.organizationalUnit = $("#divCreate-Unit").val();
+      request.years = $("#divCreate-Years").val();
+      request.addWWWSSLBinding = $("#divCreate-AddWWWSSLBinding").prop("checked");
+      request.removeNonSSLBinding = $("#divCreate-RemoveNonSSLBinding").prop("checked");
+      request.certificateAuthority = $("#selCertAuthority").val();
+      request.san = $("#divCreate-SAN").val();
+
+      Cookies.set('OrganizationName', request.organizationName, { expires: 365 });
+      Cookies.set('AdminFirstName', request.adminFirstName, { expires: 365 });
+      Cookies.set('AdminLastName', request.adminLastName, { expires: 365 });
+      Cookies.set('AddressLine1', request.addressLine1, { expires: 365 });
+      Cookies.set('AddressLine2', request.addressLine2, { expires: 365 });
+      Cookies.set('City', request.city, { expires: 365 });
+      Cookies.set('State', request.state, { expires: 365 });
+      Cookies.set('PostalCode', request.postalCode, { expires: 365 });
+      Cookies.set('Country', request.country, { expires: 365 });
+      Cookies.set('PhoneNumber', request.phoneNumber, { expires: 365 });
+      Cookies.set('EmailAddressForCert', request.emailAddressForCert, { expires: 365 });
+      Cookies.set('OrganizationalUnit', request.organizationalUnit, { expires: 365 });
+      Cookies.set('Years', request.years, { expires: 365 });
+      Cookies.set('AddWWWSSLBinding', request.addWWWSSLBinding.toString());
+      Cookies.set('RemoveNonSSLBinding', request.removeNonSSLBinding.toString());
+      Cookies.set('CertificateAuthority', request.certificateAuthority.toString());
+
+      Swal.fire({
+        title: 'Requesting Certificate',
+        html: 'Please wait...',
+        showConfirmButton: false,
+        showCloseButton: false,
+        showCancelButton: false,
+        closeModal: false,
+      });
+
+      $.ajax(
+        {
+          url: "/api/certificate",
+          data: JSON.stringify(request),
+          type: "POST",
+          contentType: "application/json",
+          success: function (data)
+          {
+            loadSiteList(true);
+            $("#tblList").bootstrapTable("refresh");
+            $("#divCreate").modal("hide");
+
+            Swal.fire("Complete", data.message, "success");
+          },
+          error: function (data)
+          {
+            Swal.fire("Failed", "Failed to create certificate", "error");
+            console.log(data);
+          }
+        });
+    }
+
+    function divNewSite_onchange()
+    {
+      if ($(this).val() == "refresh")
+      {
+        loadSiteList(true);
+        return;
+      }
+
+      $("#divCreate-CommonName").val($("#divCreate-Site option:selected").data("hostname"));
+    }
+
+    function formatRow(row, index)
+    {
+      switch (row.status)
+      {
+        case "Completed":
+          return {
+            classes: 'success'
+          };
+
+        case "Purchased":
+        case "Activated":
+          return {
+            classes: 'warning'
+          };
+
+        case "Issued":
+          return {
+            classes: 'info'
+          };
+
+        case "Expired":
+          return {
+            classes: 'danger'
+          };
+
+        case "New":
+          return {
+            classes: ''
+          }
+      }
+    }
+
+    function tblList_onclick(e, row)
+    {
+      $("#divCertificateRequest-CertificateRequestId").html(row.certificateRequestId);
+      $("#divCertificateRequest-CommonName").val(row.commonName);
+      $("#divCertificateRequest-SAN").val(row.subjectAlternativeNames);
+      $("#divCertificateRequest-CanAutoRenew").prop("checked", row.canAutoRenew);
+      $("#divCertificateRequest").data("data", row);
+      $("#divCertificateRequest-label").html("Viewing Request");
+
+      $("#btnCertificateRequestCheck").hide();
+
+      $("#btnCertificateRequestRenew").show();
+
+      $("#divCertificateRequest").modal("show");
+    }
+  </script>
+}
+<h1>Certificate Manager</h1>
+<hr />
+<div class="row">
+  <div class="col-3">
+    <div class="card">
+      <div class="card-header">
+        <strong>Summary</strong>
+      </div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>Certificate Count</label>
+          <p class="form-control-static">
+            @CertificateRequest.GetCertificateCount()
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label>Active Certificates</label>
+          <p class="form-control-static">
+            @CertificateRequest.GetCertificateCount(CertificateRequestStatus.Completed)
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label>Purchased Certificates</label>
+          <p class="form-control-static">
+            @CertificateRequest.GetCertificateCount(CertificateRequestStatus.Purchased)
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label>Pending Certificates</label>
+          <p class="form-control-static">
+            @CertificateRequest.GetCertificateCount(CertificateRequestStatus.Activated)
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label>Expired Certificates</label>
+          <p class="form-control-static">
+            @CertificateRequest.GetCertificateCount(CertificateRequestStatus.Expired)
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-9">
+    <div class="card">
+      <div class="card-header">
+        <strong>Certificate Database</strong>
+      </div>
+      <div id="divToolbar" class="btn-group">
+        <button id="btnCreate" class="btn btn-primary">Create New Certificate</button>
+      </div>
+      <div class="card-body">
+        <table data-toggle="table"
+               data-sortable="true"
+               data-toolbar="#divToolbar"
+               data-search="true"
+               data-show-refresh="true"
+               data-url="/api/certificate"
+               data-row-style="formatRow"
+               id="tblList">
+          <thead>
+            <tr>
+              <th data-sortable="true" data-field="commonName">Common Name</th>
+              <th data-sortable="true" data-field="provider">Provider</th>
+              <th data-sortable="true" data-order="desc" data-formatter="formatterDate" data-field="dateCreated">Date Created</th>
+              <th data-sortable="true" data-field="expiratonDate" data-formatter="formatterDate" data-sort-name="expiratonDate">Expiration Date</th>
+              <th data-sortable="true" data-field="status">Status</th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="divCreate" tabindex="-1" role="dialog" aria-labelledby="divCreate-Label" aria-hidden="true">
+  <div class="modal-dialog modal-xl" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="divCreate-Label">Create Certificate</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Select an existing site</label>
+          <select id="divCreate-Site" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label>Select Certificate Authority</label>
+          <select id="selCertAuthority" class="form-control">
+            <option value="10000">LetsEncrypt</option>
+            <option value="20000">NameCheap</option>
+          </select>
+        </div>
+        <div class="row">
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Organization Name</label>
+              <input type="text" placeholder="Organization Name" class="form-control" id="divCreate-OrganizationName" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Admin First Name</label>
+              <input type="text" placeholder="Administrator First Name" class="form-control" id="divCreate-AdminFirstName" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Admin Last Name</label>
+              <input type="text" placeholder="Administrator Last Name" class="form-control" id="divCreate-AdminLastName" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Admin Email</label>
+              <input type="email" placeholder="Administrator Email" class="form-control" id="divCreate-EmailAddressForCert" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Phone Number</label>
+              <input type="text" placeholder="+1.XXXXXXXXXX" class="form-control" id="divCreate-PhoneNumber" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Address Line 1</label>
+              <input type="text" placeholder="Organization Address" class="form-control" id="divCreate-AddressLine1" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Address Line 2</label>
+              <input type="text" placeholder="Organization Address" class="form-control" id="divCreate-AddressLine2" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Organization City</label>
+              <input type="text" placeholder="Organization City" class="form-control" id="divCreate-City" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Organization State</label>
+              <input type="text" placeholder="Organization State (full name)" class="form-control" id="divCreate-State" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Organization Post Code</label>
+              <input type="text" placeholder="Organization Post Code" class="form-control" id="divCreate-PostalCode" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Organization Country</label>
+              <input type="text" placeholder="Enter a two letter country code for the organization" class="form-control" id="divCreate-Country" value="us" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Organization Unit</label>
+              <input type="text" placeholder="Enter an organization unit" class="form-control" id="divCreate-Unit" value="Web" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Common Name (the url to secure)</label>
+              <input type="text" placeholder="Enter an common name" class="form-control" id="divCreate-CommonName" value="" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Subject Alternate Names</label>
+              <input type="text" placeholder="Enter alternative names seperated by comma" class="form-control" id="divCreate-SAN" value="" />
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>Number of years to purchase</label>
+              <input type="text" placeholder="Enter number of years to purchase" class="form-control" id="divCreate-Years" value="1" />
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="form-group">
+              <label><input type="checkbox" id="divCreate-AddWWWSSLBinding" /> Add www.commonname binding for ssl</label>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label><input type="checkbox" id="divCreate-RemoveNonSSLBinding" /> Remove Non SSL Bindings from site after complete</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="btnCreateCreate">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="divCertificateRequest" tabindex="-1" role="dialog" aria-labelledby="divCertificateRequest-Label" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="divCertificateRequest-Label">Certificate</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Request Id</label>
+          <p class="form-control-static" id="divCertificateRequest-CertificateRequestId"></p>
+        </div>
+        <div class="form-group">
+          <label>Common Name</label>
+          <input type="text" id="divCertificateRequest-CommonName" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Subject Alternate Names</label>
+          <input type="text" id="divCertificateRequest-SAN" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="divCertificateRequest-CanAutoRenew" /> Auto Renew </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-info" id="btnCertificateRequestCheck">Check Completion</button>
+        <button type="button" class="btn btn-danger" id="btnCertificateRequestDelete">Delete</button>
+        <button type="button" class="btn btn-primary" id="btnCertificateRequestSave">Save</button>
+        <button type="button" class="btn btn-info" id="btnCertificateRequestRenew">Renew</button>
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>

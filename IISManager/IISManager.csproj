@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup Label="Globals">
+    <SccProjectName>SAK</SccProjectName>
+    <SccProvider>SAK</SccProvider>
+    <SccAuxPath>SAK</SccAuxPath>
+    <SccLocalPath>SAK</SccLocalPath>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Techie.IISManager</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.14.0-beta.2" />
+    <PackageReference Include="Certes" Version="3.0.4" />
+    <PackageReference Include="com.techienetworks.framework" Version="1.4.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0-preview.2.25163.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Log4Net.AspNetCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Web.Administration" Version="11.1.0" />
+    <PackageReference Include="Moment.js" Version="2.30.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="8.0.0" />
+    <PackageReference Include="System.Management" Version="10.0.0-preview.2.25163.2" />
+    <PackageReference Include="System.Net.Http" Version="4.3.4" />
+  </ItemGroup>
+
+
+
+</Project>
