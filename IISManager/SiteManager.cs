@@ -140,17 +140,6 @@
 
             sm = new ServerManager();
 
-            if (cert.SubjectAlternativeNames == null || cert.SubjectAlternativeNames.Count == 0)
-            {
-                Log.Warn($"No subject alternative names found for certificate request {cert.CertificateRequestId}, attempting to fix");
-                cert.FixSubjectAlternativeNames();
-            }
-
-            if (cert.SubjectAlternativeNames == null)
-            {
-                throw new ApplicationException("No subject alternative names found for certificate request");
-            }
-
             foreach (string domain in cert.SubjectAlternativeNames)
             {
                 Log.Info($"Looking for site a site with hostname {domain}");
@@ -183,7 +172,7 @@
                     binding = site.Bindings.FirstOrDefault(a => a.Host.Equals(domain, StringComparison.OrdinalIgnoreCase) && a.Protocol == "https");
                     if (binding != null)
                     {
-                        // its bound but using anon Centralized ssl.
+                        // its bound but using non Centralized ssl.
                         Log.Info($"Site {site.Name} already has a binding for {domain} but not using SNI + CCS");
                         site.Bindings.Remove(binding);
                     }
@@ -529,23 +518,40 @@
         {
             ServerManager sm = new ServerManager();
 
+            Log.Info($"Attempting to remove binding {hostname}:{port} from site {site.Name}");
+
             var iisSite = sm.Sites.FirstOrDefault(a => a.Id == site.WebSiteId);
 
             if (iisSite != null)
             {
+                Log.Info($"Found site {iisSite.Name} with ID {iisSite.Id}");
+
                 var binding = iisSite.Bindings.FirstOrDefault(a => a.Host.Equals(hostname, StringComparison.OrdinalIgnoreCase) && a.Protocol == protocol && a.EndPoint.Port == port);
+
                 if (binding != null)
                 {
+                    Log.Info($"Found binding {hostname}:{port} on site {iisSite.Name}");
+
+                    binding["sslFlags"] = 1;
+                    sm.CommitChanges();
+                    sm.Dispose();
+
+                    sm = new ServerManager();
+                    iisSite = sm.Sites.FirstOrDefault(a => a.Id == site.WebSiteId);
+                    binding = iisSite!.Bindings.FirstOrDefault(a => a.Host.Equals(hostname, StringComparison.OrdinalIgnoreCase) && a.Protocol == protocol && a.EndPoint.Port == port);
+
                     iisSite.Bindings.Remove(binding);
                     sm.CommitChanges();
-                }
-            }
 
-            // remove the binding from the cached database
-            var wsb = site.SiteBindings.FirstOrDefault(a => a.HostName.Equals(hostname, StringComparison.OrdinalIgnoreCase) && a.Port == port && a.Protocol == protocol);
-            if (wsb != null)
-            {
-                site.SiteBindings.Remove(wsb);
+                    Log.Info($"Removed binding {hostname}:{port} from site {site.Name}");
+                }
+
+                // remove the binding from the cached database
+                var wsb = site.SiteBindings.FirstOrDefault(a => a.HostName.Equals(hostname, StringComparison.OrdinalIgnoreCase) && a.Port == port && a.Protocol == protocol);
+                if (wsb != null)
+                {
+                    site.SiteBindings.Remove(wsb);
+                }
             }
 
             await SaveDatabaseAsync();
@@ -565,6 +571,58 @@
             }
 
             await File.WriteAllTextAsync(@".\Configuration\WebSites.json", buffer);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="site"></param>
+        /// <param name="displayName"></param>
+        /// <param name="path"></param>
+        /// <returns></returns>
+        public static async ValueTask UpdateWebSiteAsync(WebSite site, string displayName, string path)
+        {
+            ServerManager sm = new ServerManager();
+
+            var iisSite = sm.Sites.FirstOrDefault(a => a.Id == site.WebSiteId);
+
+            if (iisSite == null)
+            {
+                throw new FileNotFoundException($"Could not find site with ID {site.WebSiteId}");
+            }
+
+            Log.Info($"Updating site {site.Name} with new display name {displayName} and path {path}");
+
+            iisSite.Name = displayName;
+            iisSite.Applications["/"].VirtualDirectories["/"].PhysicalPath = path;
+
+            sm.CommitChanges();
+
+            await SaveDatabaseAsync();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="displayName"></param>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public static bool WebsiteDisplayNameExists(string displayName, long? id = null)
+        {
+            ServerManager sm = new ServerManager();
+
+            foreach (var site in sm.Sites)
+            {
+                if (site.Name.Equals(displayName, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (id != null && site.Id != id)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

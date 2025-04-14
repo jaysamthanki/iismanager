@@ -18,6 +18,6 @@
         /// <summary>
         /// Gets or sets the path for the new website
         /// </summary>
-        public string? Path { get; set; }
+        public string? PhysicalPath { get; set; }
     }
 }

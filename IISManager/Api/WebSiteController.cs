@@ -34,18 +34,11 @@
 
             foreach (WebSite site in SiteManager.GetWebsites().OrderBy(a => a.Name))
             {
-                item = new
-                {
-                    site.WebSiteId,
-                    site.Name,
-                    site.ShortName,
-                    site.PhysicalPath,
-                    Bindings = new List<dynamic>()
-                };
+                List<dynamic> bindings = [];
 
-                foreach (WebSiteBinding binding in site.SiteBindings)
+                foreach (WebSiteBinding binding in site.SiteBindings.OrderBy(a => a.HostName))
                 {
-                    item.Bindings.Add(new
+                    bindings.Add(new
                     {
                         binding.WebSiteBindingId,
                         binding.Port,
@@ -54,6 +47,16 @@
                         IsSecured = (binding.SslFlags > 0 || binding.CertificateHash != null)
                     });
                 }
+
+                item = new
+                {
+                    site.WebSiteId,
+                    site.Name,
+                    site.ShortName,
+                    site.PhysicalPath,
+                    Bindings = bindings,
+                    BindingCount = bindings.Count()
+                };
 
                 response.Add(item);
             }
@@ -71,42 +74,44 @@
         {
             if (model == null)
             {
-                return BadRequest("No data provided");
+                return Problem("No data provided", statusCode: 400);
             }
 
             // Validate input
             if (string.IsNullOrWhiteSpace(model.DisplayName))
             {
-                return BadRequest("Display name is required");
+                return Problem("Display name is required", statusCode: 400);
             }
 
             if (string.IsNullOrWhiteSpace(model.ShortName))
             {
-                return BadRequest("Short name is required");
+                return Problem("Short name is required", statusCode: 400);
             }
 
             // Validate short name format
             if (!SiteManager.IsValidShortName(model.ShortName))
             {
-                return BadRequest("Short name must contain only letters and numbers with no spaces or special characters");
+                return Problem("Short name must contain only letters and numbers with no spaces or special characters", statusCode: 400);
             }
 
             // Check if site with this shortname already exists
             if (SiteManager.WebsiteShortNameExists(model.ShortName))
             {
-                return BadRequest($"A website with short name '{model.ShortName}' already exists");
+                return Problem($"A website with short name '{model.ShortName}' already exists", statusCode: 400);
+            }
+
+            // CHeck if a site with this displayname already exists
+            if (SiteManager.WebsiteDisplayNameExists(model.DisplayName))
+            {
+                return Problem($"A website with display name '{model.DisplayName}' already exists", statusCode: 400);
             }
 
             try
             {
                 // Create the website
-                WebSite newWebsite = await SiteManager.CreateWebSiteAsync(model.DisplayName, model.ShortName, model.Path);
+                WebSite newWebsite = await SiteManager.CreateWebSiteAsync(model.DisplayName, model.ShortName, model.PhysicalPath);
 
-                // Return the created website details
-                dynamic response = new ExpandoObject();
-                response.success = true;
-                response.message = $"Website '{model.DisplayName}' created successfully";
-                response.website = new
+                return Ok(new
                 {
                     newWebsite.WebSiteId,
                     newWebsite.Name,
@@ -114,13 +119,11 @@
                     newWebsite.PhysicalPath,
                     HostName = newWebsite.SiteBindings.FirstOrDefault()?.HostName,
                     Port = newWebsite.SiteBindings.FirstOrDefault()?.Port
-                };
-
-                return Ok(response);
+                });
             }
             catch (Exception ex)
             {
-                return Problem(ex.Message);
+                return Problem(ex.Message, statusCode: 400);
             }
         }
 
@@ -159,6 +162,51 @@
         }
 
         /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="id"></param>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost("{id}")]
+        public async Task<IActionResult> Update(long id, [FromBody] UpdateWebSiteDto request)
+        {
+            WebSite? site = SiteManager.GetWebSite(id);
+
+            if (site == null)
+            {
+                return Problem(detail: $"Website with ID {id} not found", statusCode: 404);
+            }
+
+            if (string.IsNullOrWhiteSpace(request.DisplayName))
+            {
+                return Problem("Display name is required", statusCode: 400);
+            }
+
+            if (string.IsNullOrEmpty(request.PhysicalPath))
+            {
+                return Problem("Path is required", statusCode: 400);
+            }
+
+            // Check if a site with this displayname already exists
+            if (SiteManager.WebsiteDisplayNameExists(request.DisplayName, id))
+            {
+                return Problem("A website with display name '{request.DisplayName}' already exists", statusCode: 400);
+            }
+
+            try
+            {
+                // Update the website
+                await SiteManager.UpdateWebSiteAsync(site, request.DisplayName, request.PhysicalPath);
+            }
+            catch (Exception ex)
+            {
+                return Problem(ex.Message, statusCode: 400);
+            }
+
+            return Ok();
+        }
+
+        /// <summary>
         /// Adds a new hostname binding to an existing website
         /// </summary>
         /// <param name="model">Model containing binding details</param>
@@ -171,13 +219,13 @@
 
             if (model == null)
             {
-                return BadRequest("No data provided");
+                return Problem("No data provided", statusCode: 400);
             }
 
             // Validate input
             if (string.IsNullOrWhiteSpace(model.HostName))
             {
-                return BadRequest("Hostname is required");
+                return Problem("Host name is required", statusCode: 400);
             }
 
             // Find site by ID or shortname
@@ -192,18 +240,27 @@
 
             if (targetSite == null)
             {
-                return NotFound("Website not found. Provide either a valid WebSiteId or ShortName.");
+                return Problem("Website not found. Provide either a valid WebSiteId or ShortName.", statusCode: 404);
             }
 
             try
             {
                 binding = await SiteManager.AddBindingAsync(targetSite, model.HostName, model.Port, model.Protocol);
 
-                return Ok(new { success = true, message = "Binding added successfully", webSiteBindingId = binding.WebSiteBindingId });
+                return Ok(new 
+                { 
+                    success = true, 
+                    message = "Binding added successfully", 
+                    webSiteBindingId = binding.WebSiteBindingId,
+                    binding.Port,
+                    binding.HostName,
+                    binding.Protocol,
+                    IsSecured = (binding.SslFlags > 0 || binding.CertificateHash != null)
+                });
             }
             catch (Exception ex)
             {
-                return Problem(ex.Message);
+                return Problem(ex.Message, statusCode: 400);
             }
         }
 
@@ -243,10 +300,105 @@
             }
             catch (Exception ex)
             {
-                return Problem(ex.Message);
+                Global.Log.Error(ex);
+                return Problem(ex.Message, statusCode: 400);
             }
 
             return Ok(new { success = true, message = "Binding removed" });
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost("securebindings")]
+        public async Task<IActionResult> SecureBindings([FromBody] SecureBindingRequestDto request)
+        {
+            WebSite? site = SiteManager.GetWebSite(request.WebSiteId);
+            List<WebSiteBinding> bindings = new List<WebSiteBinding>();
+            CertificateRequest csr;
+            List<dynamic> responsebinding;
+
+            if (site == null)
+            {
+                return Problem($"Website with ID {request.WebSiteId} not found", statusCode: 400);
+            }
+
+            csr = new CertificateRequest();
+
+            foreach (var item in request.WebSiteBindingIds)
+            {
+                var binding = site.SiteBindings.FirstOrDefault(b => b.WebSiteBindingId == item);
+                if (binding != null)
+                {
+                    bindings.Add(binding);
+                    csr.SubjectAlternativeNames.Add(binding.HostName.ToLower());
+                }
+            }
+
+            if (bindings.Count == 0)
+            {
+                return Problem("No bindings found to secure", statusCode: 400);
+            }
+
+            csr.CanAutoRenew = true;
+            csr.CertificateAuthorityProvider = TypeCodes.CertificateAuthorityProvider.LetsEncrypt;
+            csr.CommonName = bindings[0].HostName.ToLower();
+            csr.KeyLength = 4096;
+
+            // check if we alreayd have certificates covering these domains.
+            var certs = CertificateRequest.GetAllRequests();
+            foreach (var cert in certs)
+            {
+                if (cert.ExpirationDate < DateTime.Now) continue;
+
+                foreach (var san in cert.SubjectAlternativeNames)
+                {
+                    if (csr.SubjectAlternativeNames.Contains(san))
+                    {
+                        csr.SubjectAlternativeNames.Remove(san);
+                    }
+                }
+            }
+
+            if (csr.SubjectAlternativeNames.Count == 0)
+            {
+                return Problem("No new domains to secure", statusCode: 400);
+            }
+
+            try
+            {
+                csr = await LetsEncryptManager.CreateCertificate(csr, site);
+            }
+            catch (Exception ex)
+            {
+                Global.Log.Error(ex);
+                return Problem(ex.Message, statusCode: 400);
+            }
+
+            responsebinding = [];
+
+            site = SiteManager.GetWebSite(request.WebSiteId);
+            foreach (var binding in site!.SiteBindings)
+            {
+                responsebinding.Add(new
+                {
+                    binding.WebSiteBindingId,
+                    binding.Port,
+                    binding.HostName,
+                    binding.Protocol,
+                    IsSecured = (binding.SslFlags > 0 || binding.CertificateHash != null)
+                });
+            }
+
+            return Ok(new
+            {
+                csr.CertificateRequestId,
+                csr.SubjectAlternativeNames,
+                csr.ExpirationDate,
+                bindings = responsebinding
+            });
         }
     }
 }

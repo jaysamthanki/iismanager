@@ -1,37 +1,23 @@
-﻿// Please see documentation at https://docs.microsoft.com/aspnet/core/client-side/bundling-and-minification
-// for details on configuring this project to bundle and minify static web assets.
-
-// Write your Javascript code.
-
-var pageLoad = function () { };
+﻿var pageLoad = function () { };
 
 $(document).ready(function ()
 {
+  // bootstrap stacking modal fix
+  $(document).on('show.bs.modal', '.modal', function ()
+  {
+    var zIndex = 1040 + (10 * $('.modal:visible').length);
+    $(this).css('z-index', zIndex);
+    setTimeout(function () { $('.modal-backdrop').not('.modal-stack').css('z-index', zIndex - 1).addClass('modal-stack'); }, 0);
+  });
+
+  $(".hidden").hide();
+  $(".hidden").removeClass("hidden");
+
   pageLoad();
 });
 
 // Formatters
-function formatterMoney(val)
-{
-  return formatMoney(val);
-}
-
 function formatterRowIndex(value, row, index)
 {
   return index + 1;
-}
-
-function formatterNumber(val)
-{
-  return Number(val);
-}
-
-function formatterDate(val)
-{
-  return moment(val).format("L");
-}
-
-function formatterDateTime(val)
-{
-  return moment(val).format("L LTS");
 }

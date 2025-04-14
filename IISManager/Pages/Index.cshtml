@@ -1,7 +1,7 @@
 ﻿@page
 @using Techie.IISManager.Structures
 @using Techie.IISManager.TypeCodes
-@model IndexModel
+@model DefaultModel
 @{
   ViewData["Title"] = "Home page";
 }
@@ -9,603 +9,483 @@
 @section Scripts
 {
   <script type="text/javascript">
+    var currentSite = null;
+
     function pageLoad()
     {
-      $("#btnCreate").click(btnCreate_onclick);
-      $("#btnCreateCreate").click(btnCreateCreate_onclick);
-      $("#divCreate-Site").change(divNewSite_onchange);
-      $("#btnServices").button("disabled");
-
-      loadCookies();
-
-      loadSiteList();
-
-      $("#tblList").on("click-row.bs.table", tblList_onclick);
-      $("#btnCertificateRequestDelete").click(btnCertificateRequestDelete_onclick);
-      $("#btnCertificateRequestSave").click(btnCertificateRequestSave_onclick);
-      $("#btnCertificateRequestRenew").click(btnCertificateRequestRenew_onclick);
+      setupEvents();
+      setupTables();
     }
 
-    function btnCertificateRequestDelete_onclick()
+    function setupEvents()
     {
-      if (!window.confirm("Are you sure you want to delete this certificate request? This cannot be undone"))
+      $("#divTabSites-List-Toolbar-AddSite").on('click', () =>
       {
-        return false;
-      }
+        $("#divSite-Label").html("Add New Site");
+        $("#divSite-shortName").val("");
+        $("#divSite-displayName").val("");
+        $("#divSite-physicalPath").val($("#divSite-physicalPath").data("default"));
+        $("#divSite-Save").data("id", null);
+        $("#divSite").modal('show');
+      });
 
-      $("#divCertificateRequest .modal-footer button").prop("disabled", true);
+      $("#divSite-Save").on('click', () =>
+      {
+        let request = {};
+        let url = "/api/website";
 
-      $.ajax(
+        request.shortName = $("#divSite-shortName").val();
+        request.displayName = $("#divSite-displayName").val();
+        request.physicalPath = $("#divSite-physicalPath").val();
+
+        // validate.
+        if (request.shortName == "" || request.name == "" || request.physicalPath == "")
         {
-          url: "/api/certificate/" + $("#divCertificateRequest").data("data").certificateRequestId,
-          type: "DELETE",
-          success: function (data)
-          {
-            $("#divCertificateRequest .modal-footer button").prop("disabled", false);
-            if (data.errors != undefined)
+          Swal.fire(
             {
-              alert(data.errorMessage);
-            }
-            else
-            {
-              $("#divCertificateRequest").modal("hide");
-              $("#tblList").bootstrapTable("refresh");
-            }
-          }
-      });
-    }
+              icon: 'error',
+              title: 'Oops...',
+              text: 'Please fill in all fields!'
+            });
+          return;
+        }
 
-    function btnCertificateRequestRenew_onclick()
-    {
-      Swal.fire({
-        title: 'Requesting Certificate Renew',
-        html: 'Please wait...',
-        showConfirmButton: false,
-        showCloseButton: false,
-        showCancelButton: false,
-        closeModal: false,
-      });
-
-      $.post(`/api/certificate/${$("#divCertificateRequest").data("data").certificateRequestId}/Renew`, {}, function (data)
-      {
-        $("#divCertificateRequest").modal("hide");
-        $("#tblList").bootstrapTable("refresh");
-        Swal.fire("Certificate Renewed", data.message, "success");
-      }).fail(function (data)
-      {
-        Swal.fire("Error", "Check logs...", "error");
-        console.log(data);
-      });
-    }
-
-    function btnCertificateRequestSave_onclick()
-    {
-      $.ajax(
+        if ($("#divSite-Save").data("id") != null)
         {
-          url: "/api/certificate/" + $("#divCertificateRequest").data("data").certificateRequestId,
-          data: JSON.stringify(
-            {
-              commonName: $("#divCertificateRequest-CommonName").val(),
-              subjectAlternativeNames: $("#divCertificateRequest-SAN").val()
-            }),
+          url += "/" + $("#divSite-Save").data("id");
+        }
+
+        $.ajax(
+        {
+          url: url,
           type: "POST",
           contentType: "application/json",
-          success: function (data)
+          data: JSON.stringify(request),
+          success: () =>
           {
-            $("#divCertificateRequest").modal("hide");
-            $("#tblList").bootstrapTable("refresh");
+            Swal.fire(
+            {
+              icon: 'success',
+              title: 'Success',
+              text: 'Website added successfully!'
+            });
+
+            $("#divSite").modal('hide');
+            $("#divTabSites-List").bootstrapTable('refresh');
           },
-          error: function (data)
+          error: (xhr) =>
           {
-            Swal.fire("Failed", "Failed to create certificate", "error");
-            console.log(data);
+            Swal.fire(
+              {
+                icon: 'error',
+                title: 'Unable to create',
+                text: xhr.responseJSON.detail
+              });
           }
         });
-    }
+      });
 
-    function loadCookies()
-    {
-      if (Cookies.get('OrganizationName') != undefined)
+      $("#divEditSite-Bindings-Toolbar-Add").on('click', () =>
       {
-        $("#divCreate-OrganizationName").val(Cookies.get('OrganizationName'));
-      }
-
-      if (Cookies.get('AdminFirstName') != undefined)
+        $("#divAddBinding-Label").html("Add New Binding");
+        $("#divAddBinding-hostName").val("");
+        $("#divAddBinding-port").val("80");
+        $("#divAddBinding").modal("show");
+      });
+      $("#divEditSite-Bindings-Toolbar-Remove").on('click', () =>
       {
-        $("#divCreate-AdminFirstName").val(Cookies.get('AdminFirstName'));
-      }
-
-      if (Cookies.get('AdminLastName') != undefined)
-      {
-        $("#divCreate-AdminLastName").val(Cookies.get('AdminLastName'));
-      }
-
-      if (Cookies.get('AddressLine1') != undefined)
-      {
-        $("#divCreate-AddressLine1").val(Cookies.get('AddressLine1'));
-      }
-
-      if (Cookies.get('AddressLine2') != undefined)
-      {
-        $("#divCreate-AddressLine2").val(Cookies.get('AddressLine2'));
-      }
-
-      if (Cookies.get('City') != undefined)
-      {
-        $("#divCreate-City").val(Cookies.get('City'));
-      }
-
-      if (Cookies.get('State') != undefined)
-      {
-        $("#divCreate-State").val(Cookies.get('State'));
-      }
-
-      if (Cookies.get('PostalCode') != undefined)
-      {
-        $("#divCreate-PostalCode").val(Cookies.get('PostalCode'));
-      }
-
-      if (Cookies.get('Country') != undefined)
-      {
-        $("#divCreate-Country").val(Cookies.get('Country'));
-      }
-
-      if (Cookies.get('PhoneNumber') != undefined)
-      {
-        $("#divCreate-PhoneNumber").val(Cookies.get('PhoneNumber'));
-      }
-
-      if (Cookies.get('EmailAddressForCert') != undefined)
-      {
-        $("#divCreate-EmailAddressForCert").val(Cookies.get('EmailAddressForCert'));
-      }
-
-      if (Cookies.get('OrganizationalUnit') != undefined)
-      {
-        $("#divCreate-Unit").val(Cookies.get('OrganizationalUnit'));
-      }
-
-      if (Cookies.get('Years') != undefined)
-      {
-        $("#divCreate-Years").val(Cookies.get('Years'));
-      }
-
-      if (Cookies.get('AddWWWSSLBinding') != undefined)
-      {
-        $("#divCreate-AddWWWSSLBinding").prop("checked", Cookies.get('AddWWWSSLBinding') == "true");
-      }
-
-      if (Cookies.get('RemoveNonSSLBinding') != undefined)
-      {
-        $("#divCreate-RemoveNonSSLBinding").prop("checked", Cookies.get('RemoveNonSSLBinding') == "true");
-      }
-
-      if (Cookies.get('CertificateAuthority') != undefined)
-      {
-        $("#selCertAuthority").val(Cookies.get('CertificateAuthority'));
-      }
-    }
-
-    function loadSiteList(canClearCache)
-    {
-      var url = "/api/website";
-
-      if (canClearCache)
-      {
-        url += "?clearcache=" + canClearCache;
-      }
-
-      $.get(url, function (data)
-      {
-        var temp = "<option value='0'>Select...</option><option value='refresh'>Refresh Site List</option>";
-        var optionClass = "";
-
-        data.forEach(function (item)
-        {
-          temp += "<optgroup label='" + item.name + "'>";
-
-          item.bindings.forEach(function (binding)
+        Swal.fire(
           {
-            optionClass = "";
-            if (binding.isSecured)
+            title: 'Confirm',
+            text: "Are you sure you want to remove these bindings?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes!'
+          }).then((result) =>
+          {
+            if (result.isConfirmed)
             {
-              optionClass = "alert-success";
-            }
+              let selected = $("#divEditSite-Bindings").bootstrapTable('getSelections');
+              let completedDeletions = 0;
+              let failedDeletions = 0;
 
-            temp += `<option class='${optionClass}' value='${binding.webSiteBindingId}' data-hostname='${binding.hostName}' data-websiteid='${item.webSiteId}'>`;
-            temp += binding.protocol + "://" + binding.hostName + ":" + binding.port
-            temp += "</option>";
+              Swal.fire(
+                {
+                  title: 'Processing',
+                  text: `Removing ${selected.length} bindings...`,
+                  allowOutsideClick: false,
+                  didOpen: () => 
+                  {
+                    Swal.showLoading();
+                  }
+                });
+
+              // Process bindings sequentially
+              let deleteNextBinding = (index) =>
+              {
+                // If we've processed all bindings, show the final message
+                if (index >= selected.length) 
+                {
+                  if (failedDeletions > 0) 
+                  {
+                    Swal.fire(
+                    {
+                      title: 'Deletion Incomplete',
+                      text: `${completedDeletions} bindings removed successfully. ${failedDeletions} bindings failed to delete.`,
+                      icon: 'warning'
+                    });
+                  } 
+                  else
+                  {
+                    Swal.fire(
+                    {
+                      title: 'Success',
+                      text: `${completedDeletions} bindings removed successfully.`,
+                      icon: 'success'
+                    });
+                  }
+
+                  // Refresh the table to show updated data
+                  $("#divEditSite-Bindings").bootstrapTable('refresh');
+                  return;
+                }
+
+                const binding = selected[index];
+
+                // Update loading message to show progress
+                Swal.getContent().querySelector('div.swal2-html-container').textContent = `Removing binding ${index + 1} of ${selected.length}...`;
+
+                $.ajax(
+                  {
+                    url: '/api/website/binding',
+                    type: 'DELETE',
+                    data: JSON.stringify(
+                    {
+                      webSiteBindingId: binding.webSiteBindingId,
+                      webSiteId: currentSite.webSiteId
+                    }),
+                    contentType: 'application/json',
+                    success: function() 
+                    {
+                      completedDeletions++;
+                      deleteNextBinding(index + 1);
+                      // remove from the table by the websitebindingid
+                      $("#divEditSite-Bindings").bootstrapTable('removeByUniqueId', binding.webSiteBindingId);
+                    },
+                    error: function(xhr, status, error) 
+                    {
+                      console.error(`Failed to delete binding: ${error}`);
+                      failedDeletions++;
+                      deleteNextBinding(index + 1);
+                    }
+                  });
+              };
+
+              deleteNextBinding(0);
+            }
+          });
+      });
+      $("#divEditSite-Bindings-Toolbar-SSL").on('click', () =>
+      {
+        let selected = $("#divEditSite-Bindings").bootstrapTable('getSelections');
+        let request = {};
+
+        request.webSiteBindingIds = [];
+        request.webSiteId = currentSite.webSiteId;
+
+        for (var item in selected)
+        {
+          item = selected[item];
+          if (item.protocol == "http")
+          {
+            request.webSiteBindingIds.push(item.webSiteBindingId);
+          }
+        }
+
+        Swal.fire(
+          {
+            title: 'Processing',
+            text: `Securing ${selected.length} bindings...`,
+            allowOutsideClick: false,
+            didOpen: () =>
+            {
+              Swal.showLoading();
+            }
           });
 
-          temp += "</optgroup>";
-        });
+        $.ajax(
+          {
+            url: "/api/website/securebindings",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify(request),
+            success: (data) =>
+            {
+              Swal.fire(
+                {
+                  title: 'Success',
+                  text: `${data.subjectAlternativeNames.length} bindings secured successfully.`,
+                  icon: 'success'
+                });
 
-        $("#divCreate-Site").html(temp);
-      });
-    }
-
-    function btnCreate_onclick()
-    {
-      $("#divCreate").modal("show");
-    }
-
-    function btnCreateCreate_onclick()
-    {
-      var request = {};
-
-      request.webSiteId = $("#divCreate-Site option:selected").data("websiteid");
-      request.webSiteBindingId = $("#divCreate-Site").val();
-      request.organizationName = $("#divCreate-OrganizationName").val();
-      request.adminFirstName = $("#divCreate-AdminFirstName").val();
-      request.adminLastName = $("#divCreate-AdminLastName").val();
-      request.addressLine1 = $("#divCreate-AddressLine1").val();
-      request.addressLine2 = $("#divCreate-AddressLine2").val();
-      request.city = $("#divCreate-City").val();
-      request.state = $("#divCreate-State").val();
-      request.postalCode = $("#divCreate-PostalCode").val();
-      request.country = $("#divCreate-Country").val();
-      request.phoneNumber = $("#divCreate-PhoneNumber").val();
-      request.emailAddressForCert = $("#divCreate-EmailAddressForCert").val();
-      request.commonName = $("#divCreate-CommonName").val();
-      request.organizationalUnit = $("#divCreate-Unit").val();
-      request.years = $("#divCreate-Years").val();
-      request.addWWWSSLBinding = $("#divCreate-AddWWWSSLBinding").prop("checked");
-      request.removeNonSSLBinding = $("#divCreate-RemoveNonSSLBinding").prop("checked");
-      request.certificateAuthority = $("#selCertAuthority").val();
-      request.san = $("#divCreate-SAN").val();
-
-      Cookies.set('OrganizationName', request.organizationName, { expires: 365 });
-      Cookies.set('AdminFirstName', request.adminFirstName, { expires: 365 });
-      Cookies.set('AdminLastName', request.adminLastName, { expires: 365 });
-      Cookies.set('AddressLine1', request.addressLine1, { expires: 365 });
-      Cookies.set('AddressLine2', request.addressLine2, { expires: 365 });
-      Cookies.set('City', request.city, { expires: 365 });
-      Cookies.set('State', request.state, { expires: 365 });
-      Cookies.set('PostalCode', request.postalCode, { expires: 365 });
-      Cookies.set('Country', request.country, { expires: 365 });
-      Cookies.set('PhoneNumber', request.phoneNumber, { expires: 365 });
-      Cookies.set('EmailAddressForCert', request.emailAddressForCert, { expires: 365 });
-      Cookies.set('OrganizationalUnit', request.organizationalUnit, { expires: 365 });
-      Cookies.set('Years', request.years, { expires: 365 });
-      Cookies.set('AddWWWSSLBinding', request.addWWWSSLBinding.toString());
-      Cookies.set('RemoveNonSSLBinding', request.removeNonSSLBinding.toString());
-      Cookies.set('CertificateAuthority', request.certificateAuthority.toString());
-
-      Swal.fire({
-        title: 'Requesting Certificate',
-        html: 'Please wait...',
-        showConfirmButton: false,
-        showCloseButton: false,
-        showCancelButton: false,
-        closeModal: false,
+              $("#divEditSite-Bindings").bootstrapTable('load', data.bindings);
+            },
+            error: (xhr) =>
+            {
+              Swal.fire(
+                {
+                  icon: 'error',
+                  title: 'Unable to create',
+                  text: xhr.responseJSON.detail
+                });
+            }
+          });
       });
 
-      $.ajax(
+      $("#divAddBinding-Add").on('click', () =>
+      {
+        let request = {};
+        request.hostName = $("#divAddBinding-hostName").val();
+        request.port = $("#divAddBinding-port").val();
+        request.protocol = "http";
+        request.webSiteId = currentSite.webSiteId;
+
+        // check hostname is not empty and has no spaces.
+        if (request.hostName == "" || request.hostName.indexOf(" ") != -1)
         {
-          url: "/api/certificate",
-          data: JSON.stringify(request),
-          type: "POST",
-          contentType: "application/json",
-          success: function (data)
+          Swal.fire(
+            {
+              icon: 'error',
+              title: 'Oops...',
+              text: 'Hostname is required.'
+            });
+          return;
+        }
+
+        $.ajax(
           {
-            loadSiteList(true);
-            $("#tblList").bootstrapTable("refresh");
-            $("#divCreate").modal("hide");
+            url: "/api/website/binding",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify(request),
+            success: (data) =>
+            {
+              Swal.fire(
+                {
+                  icon: 'success',
+                  title: 'Success',
+                  text: 'Binding added successfully!'
+                });
+              $("#divAddBinding").modal('hide');
 
-            Swal.fire("Complete", data.message, "success");
-          },
-          error: function (data)
+              // add the response to the table
+              $("#divEditSite-Bindings").bootstrapTable('append', data);
+              // append it to the current site object.
+              currentSite.bindings.push(data);
+            },
+            error: (xhr) =>
+            {
+              Swal.fire(
+                {
+                  icon: 'error',
+                  title: 'Unable to create',
+                  text: xhr.responseJSON.detail
+                });
+            }
+          });
+      });
+    }
+
+    function setupTables()
+    {
+      let bindingsTableCheckEvent = (row) =>
+      {
+        let checked = $("#divEditSite-Bindings").bootstrapTable('getSelections');
+        let hasSecured = false;
+
+        // check the list to see if are any http bindings.. if so set hasUnsecured
+        for (let i = 0; i < checked.length; i++)
+        {
+          if (checked[i].protocol == "https")
           {
-            Swal.fire("Failed", "Failed to create certificate", "error");
-            console.log(data);
+            hasSecured = true;
+            break;
           }
-        });
-    }
+        }
 
-    function divNewSite_onchange()
-    {
-      if ($(this).val() == "refresh")
+        $("#divEditSite-Bindings-Toolbar-SSL").prop('disabled', hasSecured || (checked.length == 0));
+        $("#divEditSite-Bindings-Toolbar-Remove").prop('disabled', checked.length == 0);
+      };
+
+      $("#divTabSites-List").bootstrapTable(
       {
-        loadSiteList(true);
-        return;
-      }
+        columns: 
+        [
+          { field: "webSiteId", title: "ID", sortable: true },
+          { field: "shortName", title: "Shortname", sortable: true },
+          { field: "name", title: "Name", sortable: true },
+          { field: "bindingCount", title: "# Bindings", sortable: true }
+        ],
+        url: "/api/website",
+        method: "get",
+        sort : true,
+        search: true,
+        toolbar: "#divTabSites-List-Toolbar",
+        onClickRow: (row) =>
+        {
+          $("#divEditSite-Label").html("Editing Site");
+          $("#divEditSite-shortName").val(row.shortName);
+          $("#divEditSite-displayName").val(row.name);
+          $("#divEditSite-physicalPath").val(row.physicalPath);
+          $("#divEditSite-Save").data("id", row.webSiteId);
+          $("#divEditSite").modal('show');
 
-      $("#divCreate-CommonName").val($("#divCreate-Site option:selected").data("hostname"));
-    }
+          $("#divEditSite-Bindings").bootstrapTable("load", row.bindings);
+          $("#divEditSite-Bindings-Toolbar-SSL").prop('disabled', true);
+          $("#divEditSite-Bindings-Toolbar-Remove").prop('disabled', true);
+          currentSite = row;
+        }
+      });
 
-    function formatRow(row, index)
-    {
-      switch (row.status)
-      {
-        case "Completed":
-          return {
-            classes: 'success'
-          };
+      $("#divEditSite-Bindings").bootstrapTable(
+        {
+          columns:
+          [
+            { checkbox: true },
+            { field: "hostName", title: "Binding", sortable: true, formatter : (val, row) => 
+              {
+                let binding = row.protocol + "://" + row.hostName;
 
-        case "Purchased":
-        case "Activated":
-          return {
-            classes: 'warning'
-          };
+                if (row.port != 80 && row.port != 443)
+                {
+                  binding += ":" + row.port;
+                }
 
-        case "Issued":
-          return {
-            classes: 'info'
-          };
-
-        case "Expired":
-          return {
-            classes: 'danger'
-          };
-
-        case "New":
-          return {
-            classes: ''
-          }
-      }
-    }
-
-    function tblList_onclick(e, row)
-    {
-      $("#divCertificateRequest-CertificateRequestId").html(row.certificateRequestId);
-      $("#divCertificateRequest-CommonName").val(row.commonName);
-      $("#divCertificateRequest-SAN").val(row.subjectAlternativeNames);
-      $("#divCertificateRequest-CanAutoRenew").prop("checked", row.canAutoRenew);
-      $("#divCertificateRequest").data("data", row);
-      $("#divCertificateRequest-label").html("Viewing Request");
-
-      $("#btnCertificateRequestCheck").hide();
-
-      $("#btnCertificateRequestRenew").show();
-
-      $("#divCertificateRequest").modal("show");
+                return binding;
+              } 
+            }
+          ],
+          toolbar: "#divEditSite-Bindings-Toolbar",
+          search: true,
+          sort: true,
+          pagination: true,
+          checkboxHeader: false,
+          onCheck: bindingsTableCheckEvent,
+          onUncheck: bindingsTableCheckEvent,
+          uniqueId: "webSiteBindingId"
+        }
+      )
     }
   </script>
 }
-<h1>Certificate Manager</h1>
-<hr />
-<div class="row">
-  <div class="col-3">
-    <div class="card">
-      <div class="card-header">
-        <strong>Summary</strong>
-      </div>
-      <div class="card-body">
-        <div class="form-group">
-          <label>Certificate Count</label>
-          <p class="form-control-static">
-            @CertificateRequest.GetCertificateCount()
-          </p>
-        </div>
 
-        <div class="form-group">
-          <label>Active Certificates</label>
-          <p class="form-control-static">
-            @CertificateRequest.GetCertificateCount(CertificateRequestStatus.Completed)
-          </p>
-        </div>
+<h1>IIS Manager</h1>
 
-        <div class="form-group">
-          <label>Purchased Certificates</label>
-          <p class="form-control-static">
-            @CertificateRequest.GetCertificateCount(CertificateRequestStatus.Purchased)
-          </p>
-        </div>
+<ul class="nav nav-tabs" id="tabList">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="divTabSites-Link" data-bs-toggle="tab" data-bs-target="#divTabSites" type="button" role="tab" aria-controls="home-tab-pane" aria-selected="true">Web Sites</button>
+  </li>
+</ul>
 
-        <div class="form-group">
-          <label>Pending Certificates</label>
-          <p class="form-control-static">
-            @CertificateRequest.GetCertificateCount(CertificateRequestStatus.Activated)
-          </p>
-        </div>
-
-        <div class="form-group">
-          <label>Expired Certificates</label>
-          <p class="form-control-static">
-            @CertificateRequest.GetCertificateCount(CertificateRequestStatus.Expired)
-          </p>
-        </div>
-      </div>
+<div class="tab-content" id="myTabContent">
+  <div class="tab-pane fade show active pt-2" id="divTabSites" role="tabpanel" aria-labelledby="home-tab" tabindex="0">
+    <div id="divTabSites-List-Toolbar" class="btn-group">
+      <button id="divTabSites-List-Toolbar-AddSite" class="btn-primary btn"><i class="bi bi-plus-circle"></i> Add New Site</button>
     </div>
+    <table id="divTabSites-List"></table>
   </div>
+</div>
 
-  <div class="col-9">
-    <div class="card">
-      <div class="card-header">
-        <strong>Certificate Database</strong>
+<div class="modal fade" id="divSite" tabindex="-1" aria-labelledby="divSite" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="divSite-Label">Add New Website</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div id="divToolbar" class="btn-group">
-        <button id="btnCreate" class="btn btn-primary">Create New Certificate</button>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="divSite-shortName" class="form-label">Short Name <small>(alphanumeric only)</small></label>
+          <input type="text" class="form-control" id="divSite-shortName" required>
+        </div>
+        <div class="mb-3">
+          <label for="divSite-displayName" class="form-label">Display Name</label>
+          <input type="text" class="form-control" id="divSite-displayName" required>
+        </div>
+        <div class="mb-3">
+          <label for="divSite-physicalPath" class="form-label">Path</label>
+          <input type="text" class="form-control" id="divSite-physicalPath" required data-default="@Techie.IISManager.Global.SitesFolder">
+        </div>
       </div>
-      <div class="card-body">
-        <table data-toggle="table"
-               data-sortable="true"
-               data-toolbar="#divToolbar"
-               data-search="true"
-               data-show-refresh="true"
-               data-url="/api/certificate"
-               data-row-style="formatRow"
-               id="tblList">
-          <thead>
-            <tr>
-              <th data-sortable="true" data-field="commonName">Common Name</th>
-              <th data-sortable="true" data-field="provider">Provider</th>
-              <th data-sortable="true" data-order="desc" data-formatter="formatterDate" data-field="dateCreated">Date Created</th>
-              <th data-sortable="true" data-field="expiratonDate" data-formatter="formatterDate" data-sort-name="expiratonDate">Expiration Date</th>
-              <th data-sortable="true" data-field="status">Status</th>
-            </tr>
-          </thead>
-        </table>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="divSite-Save">Save</button>
       </div>
     </div>
   </div>
 </div>
 
-<div class="modal fade" id="divCreate" tabindex="-1" role="dialog" aria-labelledby="divCreate-Label" aria-hidden="true">
-  <div class="modal-dialog modal-xl" role="document">
+<div class="modal fade" id="divEditSite" tabindex="-1" aria-labelledby="divEditSite" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="divCreate-Label">Create Certificate</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
+        <h5 class="modal-title" id="divEditSite-Label">Edit Website</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <div class="form-group">
-          <label>Select an existing site</label>
-          <select id="divCreate-Site" class="form-control"></select>
-        </div>
-        <div class="form-group">
-          <label>Select Certificate Authority</label>
-          <select id="selCertAuthority" class="form-control">
-            <option value="10000">LetsEncrypt</option>
-            <option value="20000">NameCheap</option>
-          </select>
-        </div>
         <div class="row">
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Organization Name</label>
-              <input type="text" placeholder="Organization Name" class="form-control" id="divCreate-OrganizationName" />
+          <div class="col-3">
+            <div class="mb-3">
+              <label for="divEditSite-shortName" class="form-label">Short Name <small>(alphanumeric only)</small></label>
+              <input type="text" class="form-control" id="divEditSite-shortName" required>
+            </div>
+            <div class="mb-3">
+              <label for="divEditSite-displayName" class="form-label">Display Name</label>
+              <input type="text" class="form-control" id="divEditSite-displayName" required>
+            </div>
+            <div class="mb-3">
+              <label for="divEditSite-physicalPath" class="form-label">Path</label>
+              <input type="text" class="form-control" id="divEditSite-physicalPath" required data-default="@Techie.IISManager.Global.SitesFolder">
             </div>
           </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Admin First Name</label>
-              <input type="text" placeholder="Administrator First Name" class="form-control" id="divCreate-AdminFirstName" />
+          <div class="col-9">
+            <div id="divEditSite-Bindings-Toolbar" class="btn-group">
+              <button id="divEditSite-Bindings-Toolbar-Add" class="btn-primary btn"><i class="bi bi-plus-circle"></i> Add</button>
+              <button id="divEditSite-Bindings-Toolbar-SSL" class="btn-info btn"><i class="bi bi-lock"></i> SSL</button>
+              <button id="divEditSite-Bindings-Toolbar-Remove" class="btn-danger btn"><i class="bi bi-x-circle"></i> Remove</button>
             </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Admin Last Name</label>
-              <input type="text" placeholder="Administrator Last Name" class="form-control" id="divCreate-AdminLastName" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Admin Email</label>
-              <input type="email" placeholder="Administrator Email" class="form-control" id="divCreate-EmailAddressForCert" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Phone Number</label>
-              <input type="text" placeholder="+1.XXXXXXXXXX" class="form-control" id="divCreate-PhoneNumber" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Address Line 1</label>
-              <input type="text" placeholder="Organization Address" class="form-control" id="divCreate-AddressLine1" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Address Line 2</label>
-              <input type="text" placeholder="Organization Address" class="form-control" id="divCreate-AddressLine2" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Organization City</label>
-              <input type="text" placeholder="Organization City" class="form-control" id="divCreate-City" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Organization State</label>
-              <input type="text" placeholder="Organization State (full name)" class="form-control" id="divCreate-State" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Organization Post Code</label>
-              <input type="text" placeholder="Organization Post Code" class="form-control" id="divCreate-PostalCode" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Organization Country</label>
-              <input type="text" placeholder="Enter a two letter country code for the organization" class="form-control" id="divCreate-Country" value="us" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Organization Unit</label>
-              <input type="text" placeholder="Enter an organization unit" class="form-control" id="divCreate-Unit" value="Web" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Common Name (the url to secure)</label>
-              <input type="text" placeholder="Enter an common name" class="form-control" id="divCreate-CommonName" value="" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Subject Alternate Names</label>
-              <input type="text" placeholder="Enter alternative names seperated by comma" class="form-control" id="divCreate-SAN" value="" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>Number of years to purchase</label>
-              <input type="text" placeholder="Enter number of years to purchase" class="form-control" id="divCreate-Years" value="1" />
-            </div>
-          </div>
-
-          <div class="col-md-6">
-            <div class="form-group">
-              <label><input type="checkbox" id="divCreate-AddWWWSSLBinding" /> Add www.commonname binding for ssl</label>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="form-group">
-              <label><input type="checkbox" id="divCreate-RemoveNonSSLBinding" /> Remove Non SSL Bindings from site after complete</label>
-            </div>
+            <table id="divEditSite-Bindings"></table>
           </div>
         </div>
+          
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-primary" id="btnCreateCreate">Create</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
       </div>
     </div>
   </div>
 </div>
 
-<div class="modal fade" id="divCertificateRequest" tabindex="-1" role="dialog" aria-labelledby="divCertificateRequest-Label" aria-hidden="true">
-  <div class="modal-dialog" role="document">
+<div class="modal fade" id="divAddBinding" tabindex="-1" aria-labelledby="divAddBinding" aria-hidden="true">
+  <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="divCertificateRequest-Label">Certificate</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
+        <h5 class="modal-title" id="divSite-Label">Add New Binding</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <div class="form-group">
-          <label>Request Id</label>
-          <p class="form-control-static" id="divCertificateRequest-CertificateRequestId"></p>
+        <div class="mb-3">
+          <label for="divAddBinding-hostName" class="form-label">Hostname</label>
+          <input type="text" class="form-control" id="divAddBinding-hostName" required>
         </div>
-        <div class="form-group">
-          <label>Common Name</label>
-          <input type="text" id="divCertificateRequest-CommonName" class="form-control" />
-        </div>
-        <div class="form-group">
-          <label>Subject Alternate Names</label>
-          <input type="text" id="divCertificateRequest-SAN" class="form-control" />
-        </div>
-        <div class="form-group">
-          <label><input type="checkbox" id="divCertificateRequest-CanAutoRenew" /> Auto Renew </label>
+        <div class="mb-3">
+          <label for="divAddBinding-port" class="form-label">Port</label>
+          <input type="text" class="form-control" id="divAddBinding-port" required>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-info" id="btnCertificateRequestCheck">Check Completion</button>
-        <button type="button" class="btn btn-danger" id="btnCertificateRequestDelete">Delete</button>
-        <button type="button" class="btn btn-primary" id="btnCertificateRequestSave">Save</button>
-        <button type="button" class="btn btn-info" id="btnCertificateRequestRenew">Renew</button>
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="divAddBinding-Add">Add</button>
       </div>
     </div>
   </div>
