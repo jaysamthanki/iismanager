@@ -5,3 +5,6 @@
 /.vs
 /IISManager/obj
 /IISManager/bin
+/IISManager/Configuration/CertificateRequests.json
+/IISManager/Configuration/LetsEncryptAccount.pem
+/IISManager/Configuration/WebSites.json
