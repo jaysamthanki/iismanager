@@ -231,8 +231,10 @@
         public static void StartService()
         {
             timer = new Timer();
-            timer.Interval = 100;
-            timer.Start();
+            timer.Elapsed += Timer_Elapsed;
+            timer.AutoReset = true;
+            timer.Enabled = true;
+            timer.Interval = 5000;
 
             IsRunning = true;
             Log.Info("Lets Encrypt Manager Started");
@@ -244,6 +246,7 @@
         public static void StopService()
         {
             Log.Info("Lets Encrypt Manager Stopping");
+            timer.Enabled = false;
             timer.Stop();
             IsRunning = false;
         }
@@ -257,16 +260,16 @@
         {
             WebSite? site = null;
             List<CertificateRequest> certificates = [];
-            timer.Stop();
 
             try
             {
                 Log.Info("LetsEncrypt Manager checking certs");
-
+                timer.Enabled = false;
                 certificates.AddRange(CertificateRequest.GetRequests(CertificateAuthorityProvider.LetsEncrypt, CertificateRequestStatus.Completed));
                 certificates.AddRange(CertificateRequest.GetRequests(CertificateAuthorityProvider.LetsEncrypt, CertificateRequestStatus.Expired));
                 certificates.AddRange(CertificateRequest.GetRequests(CertificateAuthorityProvider.LetsEncrypt, CertificateRequestStatus.New));
-                
+
+                Log.Debug($"Certificates to process: {certificates.Count}");
                 foreach (CertificateRequest cr in certificates)
                 {
                     if (cr.ExpirationDate > DateTime.Now)

@@ -253,13 +253,7 @@
                     foreach (var binding in site.SiteBindings)
                     {
                         var existingBinding = existingSite.SiteBindings.FirstOrDefault(a => a.HostName == binding.HostName && a.Protocol == binding.Protocol && a.Port == binding.Port);
-                        if (existingBinding != null)
-                        {
-                            Log.Info($"Updating {site.Name} existing binding {binding.HostName} in the database..");
-                            existingBinding.Port = binding.Port;
-                            existingBinding.Protocol = binding.Protocol;
-                        }
-                        else
+                        if (existingBinding == null)
                         {
                             Log.Info($"Adding {site.Name} new binding {binding.HostName} in the database..");
                             existingSite.SiteBindings.Add(binding);

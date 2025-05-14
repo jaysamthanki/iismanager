@@ -21,3 +21,10 @@ function formatterRowIndex(value, row, index)
 {
   return index + 1;
 }
+
+function formatterDate(value)
+{
+  if (value == null || value == "") return "";
+  var date = new Date(value);
+  return date.toLocaleDateString();
+}
