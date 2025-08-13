@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IIS Manager Alert</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            margin: 20px auto;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .alert-type {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 10px;
+            text-transform: uppercase;
+        }
+        .alert-info {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        .alert-warning {
+            background-color: #ffa726;
+        }
+        .alert-error {
+            background-color: #ef5350;
+        }
+        .alert-success {
+            background-color: #66bb6a;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 5px;
+        }
+        .detail-row {
+            display: flex;
+            padding: 8px 0;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        .detail-label {
+            font-weight: 600;
+            color: #666;
+            min-width: 120px;
+            flex-shrink: 0;
+        }
+        .detail-value {
+            color: #333;
+            word-break: break-word;
+        }
+        .message-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .message-box.warning {
+            border-left-color: #ffa726;
+            background-color: #fff8e1;
+        }
+        .message-box.error {
+            border-left-color: #ef5350;
+            background-color: #ffebee;
+        }
+        .message-box.success {
+            border-left-color: #66bb6a;
+            background-color: #e8f5e9;
+        }
+        .code-block {
+            background-color: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .timestamp {
+            font-size: 11px;
+            color: #999;
+            margin-top: 5px;
+        }
+        .action-required {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .action-required h3 {
+            margin-top: 0;
+            color: #856404;
+            font-size: 16px;
+        }
+        ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>IIS Manager Alert</h1>
+            <span class="alert-type {{ALERT_CLASS}}">{{ALERT_TYPE}}</span>
+        </div>
+        
+        <div class="content">
+            <!-- Main Alert Message -->
+            <div class="section">
+                <div class="section-title">Alert Summary</div>
+                <div class="message-box {{MESSAGE_CLASS}}">
+                    {{ALERT_MESSAGE}}
+                </div>
+            </div>
+
+            <!-- Alert Details -->
+            <div class="section">
+                <div class="section-title">Details</div>
+                <div class="detail-row">
+                    <span class="detail-label">Server:</span>
+                    <span class="detail-value">{{SERVER_NAME}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Domain:</span>
+                    <span class="detail-value">{{DOMAIN}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Website:</span>
+                    <span class="detail-value">{{WEBSITE_NAME}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Timestamp:</span>
+                    <span class="detail-value">{{TIMESTAMP}}</span>
+                </div>
+                {{ADDITIONAL_DETAILS}}
+            </div>
+
+            <!-- Action Required Section (optional) -->
+            {{ACTION_REQUIRED_SECTION}}
+
+            <!-- Technical Details (optional) -->
+            {{TECHNICAL_DETAILS_SECTION}}
+
+            <!-- Error Details (optional) -->
+            {{ERROR_SECTION}}
+        </div>
+
+        <div class="footer">
+            <p>This is an automated message from IIS Manager on {{SERVER_NAME}}</p>
+            <p class="timestamp">Generated at {{TIMESTAMP}}</p>
+            <p><a href="mailto:{{ADMIN_EMAIL}}">Contact Administrator</a></p>
+        </div>
+    </div>
+</body>
+</html>
+
+<!-- 
+Template Variables:
+- {{ALERT_TYPE}}: Type of alert (INFO, WARNING, ERROR, SUCCESS)
+- {{ALERT_CLASS}}: CSS class for alert type (alert-info, alert-warning, alert-error, alert-success)
+- {{ALERT_MESSAGE}}: Main alert message
+- {{MESSAGE_CLASS}}: CSS class for message box styling
+- {{SERVER_NAME}}: Server hostname
+- {{DOMAIN}}: Domain name involved
+- {{WEBSITE_NAME}}: IIS website name
+- {{TIMESTAMP}}: When the alert was generated
+- {{ADDITIONAL_DETAILS}}: Additional detail rows (HTML)
+- {{ACTION_REQUIRED_SECTION}}: Optional section for required actions (HTML)
+- {{TECHNICAL_DETAILS_SECTION}}: Optional section for technical details (HTML)
+- {{ERROR_SECTION}}: Optional section for error details (HTML)
+- {{ADMIN_EMAIL}}: Administrator email address
+
+Example sections that can be inserted:
+
+Action Required Section:
+<div class="action-required">
+    <h3>Action Required</h3>
+    <p>Please take the following actions:</p>
+    <ul>
+        <li>Review the certificate renewal logs</li>
+        <li>Verify DNS settings for the domain</li>
+        <li>Check firewall rules for port 80</li>
+    </ul>
+</div>
+
+Technical Details Section:
+<div class="section">
+    <div class="section-title">Technical Details</div>
+    <div class="code-block">
+Certificate Request ID: abc123-def456
+Validation Method: HTTP-01
+Challenge Token: xyz789
+Status: Pending Validation
+    </div>
+</div>
+
+Error Section:
+<div class="section">
+    <div class="section-title">Error Information</div>
+    <div class="message-box error">
+        <strong>Error:</strong> Unable to validate domain ownership<br>
+        <strong>Code:</strong> ACME_VALIDATION_FAILED<br>
+        <strong>Details:</strong> The HTTP-01 challenge could not be completed
+    </div>
+</div>
+-->

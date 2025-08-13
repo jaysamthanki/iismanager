@@ -176,6 +176,21 @@
         public DateTime ActivationDate { get; set; }
 
         /// <summary>
+        /// Gets or sets the number of renewal attempts made for this certificate.
+        /// </summary>
+        public int RenewalAttempts { get; set; }
+
+        /// <summary>
+        /// Gets or sets the maximum number of renewal attempts allowed before giving up.
+        /// </summary>
+        public int MaxRenewalAttempts { get; set; }
+
+        /// <summary>
+        /// Gets or sets the date of the last renewal attempt.
+        /// </summary>
+        public DateTime LastRenewalAttempt { get; set; }
+
+        /// <summary>
         /// Static constructor to initialize the internal database and load existing requests.
         /// </summary>
         static CertificateRequest()
@@ -248,6 +263,9 @@
             this.LastCheckDate = DateTime.MaxValue;
             this.PostalCode = string.Empty;
             this.SubjectAlternativeNames = [];
+            this.RenewalAttempts = 0;
+            this.MaxRenewalAttempts = 3; // Default to 3 attempts
+            this.LastRenewalAttempt = DateTime.MinValue;
         }
 
         /// <summary>
@@ -402,7 +420,7 @@
 
             lock (requests)
             {
-                buffer = Newtonsoft.Json.JsonConvert.SerializeObject(requests);
+                buffer = Newtonsoft.Json.JsonConvert.SerializeObject(requests, Newtonsoft.Json.Formatting.Indented);
             }
 
             File.WriteAllText(Path.Combine(Global.DataFolder, "CertificateRequests.json"), buffer);
@@ -418,10 +436,70 @@
 
             lock (requests)
             {
-                buffer = Newtonsoft.Json.JsonConvert.SerializeObject(requests);
+                buffer = Newtonsoft.Json.JsonConvert.SerializeObject(requests, Newtonsoft.Json.Formatting.Indented);
             }
 
             await File.WriteAllTextAsync(Path.Combine(Global.DataFolder, "CertificateRequests.json"), buffer);
+        }
+
+        /// <summary>
+        /// Resets the renewal attempt counter for a certificate request
+        /// </summary>
+        /// <param name="certificateRequestId">The ID of the certificate request to reset</param>
+        /// <returns>True if the certificate was found and reset, false otherwise</returns>
+        public static async Task<bool> ResetRenewalAttemptsAsync(Guid certificateRequestId)
+        {
+            var request = GetRequest(certificateRequestId);
+            if (request != null)
+            {
+                Log.Info($"Resetting renewal attempts for certificate {certificateRequestId} (domain: {request.CommonName})");
+                request.RenewalAttempts = 0;
+                request.LastRenewalAttempt = DateTime.MinValue;
+                
+                // If the certificate was marked as expired due to max attempts, reset it to completed
+                if (request.CertificateRequestStatus == CertificateRequestStatus.Expired)
+                {
+                    request.CertificateRequestStatus = CertificateRequestStatus.Completed;
+                }
+                
+                await SaveDatabaseAsync();
+                return true;
+            }
+            
+            return false;
+        }
+
+        /// <summary>
+        /// Resets the renewal attempt counter for all certificate requests with a specific domain
+        /// </summary>
+        /// <param name="commonName">The domain name to reset</param>
+        /// <returns>Number of certificates that were reset</returns>
+        public static async Task<int> ResetRenewalAttemptsByDomainAsync(string commonName)
+        {
+            int resetCount = 0;
+            var matchingRequests = requests.Where(r => r.CommonName.Equals(commonName, StringComparison.OrdinalIgnoreCase)).ToList();
+            
+            foreach (var request in matchingRequests)
+            {
+                Log.Info($"Resetting renewal attempts for certificate {request.CertificateRequestId} (domain: {request.CommonName})");
+                request.RenewalAttempts = 0;
+                request.LastRenewalAttempt = DateTime.MinValue;
+                
+                // If the certificate was marked as expired due to max attempts, reset it to completed
+                if (request.CertificateRequestStatus == CertificateRequestStatus.Expired)
+                {
+                    request.CertificateRequestStatus = CertificateRequestStatus.Completed;
+                }
+                
+                resetCount++;
+            }
+            
+            if (resetCount > 0)
+            {
+                await SaveDatabaseAsync();
+            }
+            
+            return resetCount;
         }
 
         /// <summary>

@@ -182,21 +182,6 @@
                     // Set ssl flags to "3", for SNI + CCS
                     binding["sslFlags"] = 3;
 
-                    if (cert.CanRemoveNonSSLBinding)
-                    {
-                        Log.Info("Looking to remove non ssl binding as requested");
-
-                        binding = site.Bindings.FirstOrDefault(a => a.Host.Equals(domain, StringComparison.OrdinalIgnoreCase) && a.Protocol == "http");
-                        if (binding != null)
-                        {
-                            site.Bindings.Remove(binding);
-                            Log.Info($"Removed non-ssl binding for {domain}");
-                        }
-
-                        // No need to do this again when its time to renew.
-                        cert.CanRemoveNonSSLBinding = false;
-                    }
-
                     sm.CommitChanges();
                 }
                 catch (Exception ex)
@@ -247,7 +232,6 @@
 
                 if (existingSite != null)
                 {
-                    Log.Info($"Updating {site.Name} existing site in the database..");
                     existingSite.Name = site.Name;
                     existingSite.PhysicalPath = site.PhysicalPath;
                     foreach (var binding in site.SiteBindings)
@@ -263,10 +247,10 @@
                     // remove bindings no longer present
                     foreach (var binding in existingSite.SiteBindings.ToArray())
                     {
-                        var existingBinding = site.SiteBindings.FirstOrDefault(a => a.HostName == binding.HostName);
+                        var existingBinding = site.SiteBindings.FirstOrDefault(a => a.HostName == binding.HostName && a.Protocol == binding.Protocol && a.Port == binding.Port);
                         if (existingBinding == null)
                         {
-                            Log.Info($"Removing {site.Name} binding {binding.HostName} from the database..");
+                            Log.Info($"Removing {site.Name} binding {binding.HostName}:{binding.Port} ({binding.Protocol}) from the database..");
                             existingSite.SiteBindings.Remove(binding);
                         }
                     }
@@ -561,7 +545,7 @@
 
             lock (sites)
             {
-                buffer = JsonConvert.SerializeObject(sites);
+                buffer = JsonConvert.SerializeObject(sites, Formatting.Indented);
             }
 
             await File.WriteAllTextAsync(@".\Configuration\WebSites.json", buffer);
